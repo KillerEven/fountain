@@ -1,9 +1,15 @@
 #Fountain
-	a simple text game engine
+一个简易的ASCII游戏引擎
 
-##Description
-	Fountain is a simple game engine for text game.
+##描述
+Fountain是一个简单的为ASCII文字类游戏设计的游戏引擎
+* map.in:存储地图的文件
+* cam.in:存储摄像机信息的文件
+* cha.in:存储角色信息的文件
 
-##Author
-* I'm a rookie programmer that want to study game engine design,and started it from writting a simple text game engine called "Fountain".I even don't know whether it would be completed,but Just For Fun!
-* Anybody is welcome to commit,and I would appreciate your comments.
+##进度
+2013-08-14 完成了实现最基础功能的代码（在屏幕上显示地图）
+
+##作者
+* Just For Fun!
+* 欢迎指教，联系方式：c.even@live.cn
