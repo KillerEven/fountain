@@ -1,46 +1,11 @@
-//#include<pthread.h>
 #include<time.h>
 #include<stdlib.h>
 #include<string.h>
 #include<math.h>
-
-#define LINUX
-//#define WINDOWS
-
-#ifdef LINUX
-	#undef WINDOWS
-	#include<ncurses.h>
-	#include<termios.h>  
-	#include<unistd.h>  
-	#include<fcntl.h>
-	int kbhit(void)  
-	{  
-		struct termios oldt, newt;  
-    	int ch;  
-		int oldf;  
-    	tcgetattr(STDIN_FILENO, &oldt);  
-		newt = oldt;  
-    	newt.c_lflag &= ~(ICANON | ECHO);  
-		tcsetattr(STDIN_FILENO, TCSANOW, &newt);  
-    	oldf = fcntl(STDIN_FILENO, F_GETFL, 0);  
- 		fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);  
- 		ch = getchar();  
- 		tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  
-  		fcntl(STDIN_FILENO, F_SETFL, oldf);  
-  		if(ch != EOF)  
-    	{  
-	    	ungetc(ch, stdin);  
-	    	return 1;  
-  		}  
-	    return 0;  
-	}  
-#endif
-
-#ifdef WINDOWS
-	#include<windows.h>
-	#include<conio.h>
-#endif
-
+#include<ncurses.h>
+#include<termios.h>  
+#include<unistd.h>  
+#include<fcntl.h>
 
 typedef struct xy
 {
@@ -88,15 +53,40 @@ typedef struct character
 }CHA;
 
 void render(MAP ma,CAM ca,CHA ch,SCR *sc);
+int kbhit(void)  
+{  
+	struct termios oldt, newt;  
+   	int ch;  
+	int oldf;  
+   	tcgetattr(STDIN_FILENO, &oldt);  
+	newt = oldt;  
+   	newt.c_lflag &= ~(ICANON | ECHO);  
+	tcsetattr(STDIN_FILENO, TCSANOW, &newt);  
+   	oldf = fcntl(STDIN_FILENO, F_GETFL, 0);  
+ 	fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);  
+ 	ch = getchar();  
+ 	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  
+  	fcntl(STDIN_FILENO, F_SETFL, oldf);  
+  	if(ch != EOF)  
+   	{  
+    	ungetc(ch, stdin);  
+    	return 1;  
+	}  
+    return 0;  
+}  
+
 void clrs(int a)
 {
-#ifdef LINUX
 	if(a==0)system("clear");
-	else printf("\033[0;0H\033[?25l");
-#endif
-#ifdef WINDOWS
-	system("cls");
-#endif
+	else clear();
+	//printw("\033[0;0H\033[?25l");
+}
+
+void delay(long waitms)
+{
+	clock_t goal;
+	goal=clock()+waitms;
+	while(goal>clock());
 }
 
 int main()
@@ -184,6 +174,10 @@ int main()
 	//数据初始化结束
 
 	clrs(0);
+	initscr();//ncurses初始化
+	noecho();
+	cbreak();
+	nodelay(stdscr,TRUE);
 	//调试代码开始
 	while(1)
 	{//while开始
@@ -213,24 +207,23 @@ int main()
 	//数据处理结束
 
 	//数据呈现开始
-	for(i=0;i<Scr[k].top;i++)printf("\n");
+	for(i=0;i<Scr[k].top;i++)printw("\n");
 	for(scrI=0;scrI<Scr[k].size.y;scrI++)
 	{
-		for(i=0;i<Scr[k].left;i++)printf(" ");
+		for(i=0;i<Scr[k].left;i++)printw(" ");
 		for(scrJ=0;scrJ<Scr[k].size.x;scrJ++)
 		{
-			printf("%c",Scr[k].a[scrI][scrJ]);
+			printw("%c",Scr[k].a[scrI][scrJ]);
 		}
-		printf("\n");
+		printw("\n");
 	}
 	//数据呈现结束
 	keyLock=-1;
 
 	//调试代码开始
-	//nodelay();
 		if(kbhit())
 		{
-			key=getchar();	
+			key=getch();	
 			if(keyLock==-1)
 				switch(key)
 				{
@@ -245,9 +238,9 @@ int main()
 				}
 			key='\0';
 		}
-		while(kbhit())
-		key=getchar();
 		key='\0';
+		refresh();
+		napms(30);
 	}//while结束
 	//调试代码结束
 
