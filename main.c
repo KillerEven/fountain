@@ -1,9 +1,46 @@
-#include<stdio.h>
-#include<pthread.h>
+//#include<pthread.h>
 #include<time.h>
 #include<stdlib.h>
 #include<string.h>
 #include<math.h>
+
+#define LINUX
+//#define WINDOWS
+
+#ifdef LINUX
+	#undef WINDOWS
+	#include<ncurses.h>
+	#include<termios.h>  
+	#include<unistd.h>  
+	#include<fcntl.h>
+	int kbhit(void)  
+	{  
+		struct termios oldt, newt;  
+    	int ch;  
+		int oldf;  
+    	tcgetattr(STDIN_FILENO, &oldt);  
+		newt = oldt;  
+    	newt.c_lflag &= ~(ICANON | ECHO);  
+		tcsetattr(STDIN_FILENO, TCSANOW, &newt);  
+    	oldf = fcntl(STDIN_FILENO, F_GETFL, 0);  
+ 		fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);  
+ 		ch = getchar();  
+ 		tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  
+  		fcntl(STDIN_FILENO, F_SETFL, oldf);  
+  		if(ch != EOF)  
+    	{  
+	    	ungetc(ch, stdin);  
+	    	return 1;  
+  		}  
+	    return 0;  
+	}  
+#endif
+
+#ifdef WINDOWS
+	#include<windows.h>
+	#include<conio.h>
+#endif
+
 
 typedef struct xy
 {
@@ -51,6 +88,16 @@ typedef struct character
 }CHA;
 
 void render(MAP ma,CAM ca,CHA ch,SCR *sc);
+void clrs(int a)
+{
+#ifdef LINUX
+	if(a==0)system("clear");
+	else printf("\033[0;0H\033[?25l");
+#endif
+#ifdef WINDOWS
+	system("cls");
+#endif
+}
 
 int main()
 {
@@ -61,6 +108,8 @@ int main()
 	int k;//游戏数据组号
 	int i,j,l,camI,camJ,scrI,scrJ,mapI;
 	int indx;//地图层编号
+	char key;//输入按键
+	int keyLock;
 	FILE *map,*cam,*cha;
 	map=fopen("map.in","r");
 	cam=fopen("cam.in","r");
@@ -134,9 +183,11 @@ int main()
 	Scr[k].top=0;
 	//数据初始化结束
 
+	clrs(0);
 	//调试代码开始
-		while(1)
-		{//while开始
+	while(1)
+	{//while开始
+		clrs(1);
 	//调试代码结束
 	
 	//数据处理开始
@@ -162,8 +213,10 @@ int main()
 	//数据处理结束
 
 	//数据呈现开始
+	for(i=0;i<Scr[k].top;i++)printf("\n");
 	for(scrI=0;scrI<Scr[k].size.y;scrI++)
 	{
+		for(i=0;i<Scr[k].left;i++)printf(" ");
 		for(scrJ=0;scrJ<Scr[k].size.x;scrJ++)
 		{
 			printf("%c",Scr[k].a[scrI][scrJ]);
@@ -171,13 +224,31 @@ int main()
 		printf("\n");
 	}
 	//数据呈现结束
+	keyLock=-1;
 
 	//调试代码开始
-		Cam[k].location.x++;
-		if(Cam[k].location.x>30)break;
-		system("sleep 0.5");
-		system("clear");
-		}//while结束
+	//nodelay();
+		if(kbhit())
+		{
+			key=getchar();	
+			if(keyLock==-1)
+				switch(key)
+				{
+					case 'd':
+						if(Cam[k].location.x<30)Cam[k].location.x++;
+						keyLock=1;
+						break;
+					case 'a':
+						if(Cam[k].location.x>0)Cam[k].location.x--;
+						keyLock=1;
+						break;
+				}
+			key='\0';
+		}
+		while(kbhit())
+		key=getchar();
+		key='\0';
+	}//while结束
 	//调试代码结束
 
 	return 0;
