@@ -52,7 +52,7 @@ typedef struct character
 	TEA location;
 }CHA;
 
-void render(MAP ma,CAM ca,CHA ch,SCR *sc);
+//void render(MAP ma,CAM ca,CHA ch,SCR *sc);
 int kbhit(void)  
 {  
 	struct termios oldt, newt;  
@@ -78,15 +78,8 @@ int kbhit(void)
 void clrs(int a)
 {
 	if(a==0)system("clear");
-	else clear();
+	else clear();//ncurses下的清屏
 	//printw("\033[0;0H\033[?25l");
-}
-
-void delay(long waitms)
-{
-	clock_t goal;
-	goal=clock()+waitms;
-	while(goal>clock());
 }
 
 int main()
@@ -96,7 +89,8 @@ int main()
 	SCR Scr[2];
 	CHA Cha[2];
 	int k;//游戏数据组号
-	int i,j,l,camI,camJ,scrI,scrJ,mapI;
+	int i,j,l,camI,camJ,scrI,scrJ,mapI,chaI,chaJ;
+	int chaFPS=0;//人物当前状态帧编号
 	int indx;//地图层编号
 	char key;//输入按键
 	int keyLock;
@@ -175,9 +169,10 @@ int main()
 
 	clrs(0);
 	initscr();//ncurses初始化
-	noecho();
+	noecho();//关闭getch的回显
 	cbreak();
-	nodelay(stdscr,TRUE);
+	curs_set(0);//隐藏光标
+	nodelay(stdscr,TRUE);//讲getch设置为无延迟
 	//调试代码开始
 	while(1)
 	{//while开始
@@ -196,9 +191,13 @@ int main()
 			scrJ=camJ-Cam[k].location.x;
 			for(mapI=0;mapI<Map[k].layerA;mapI++)	
 			{
-				if(mapI+1==Map[k].roleLayerNum)
+				if(mapI==Map[k].roleLayerNum)
 				{
 					//TODO:更新人物状态将人物写入屏幕
+					chaI=camI-Cha[k].location.y;
+					chaJ=camJ-Cha[k].location.x;
+					if((chaI>=0)&&(chaI<Cha[k].size.y)&&(chaJ>=0)&&(chaJ<Cha[k].size.x))
+						if(Cha[k].a[chaFPS][chaI][chaJ]!=' ')Scr[k].a[scrI][scrJ]=Cha[k].a[chaFPS][chaI][chaJ];
 				}
 				if(Map[k].a[mapI][camI][camJ]!=' ')Scr[k].a[scrI][scrJ]=Map[k].a[mapI][camI][camJ];
 			}
@@ -228,20 +227,31 @@ int main()
 				switch(key)
 				{
 					case 'd':
-						if(Cam[k].location.x<30)Cam[k].location.x++;
+						Cha[k].location.x++;
+						chaFPS++;
+						//if(Cha[k].location.x>)
 						keyLock=1;
 						break;
 					case 'a':
-						if(Cam[k].location.x>0)Cam[k].location.x--;
+						Cha[k].location.x--;
+						chaFPS++;
 						keyLock=1;
 						break;
+					case 'j':
+						if(Cam[k].location.x>0)Cam[k].location.x--;
+						break;
+					case 'l':
+						if(Cam[k].location.x<30)Cam[k].location.x++;
+						break;
 				}
+			if(key=='q')break;//按q键退出
 			key='\0';
 		}
-		key='\0';
-		refresh();
-		napms(30);
+		refresh();//刷新显示屏幕
+		if(chaFPS==Cha[k].fpsN)chaFPS%=Cha[k].fpsN;
+		napms(30);//小睡30ms
 	}//while结束
+	endwin();//结束ncurses模式
 	//调试代码结束
 
 	return 0;
