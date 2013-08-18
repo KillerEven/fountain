@@ -1,8 +1,10 @@
-#include<time.h>
+#include<ncurses.h>
 #include<stdlib.h>
 #include<string.h>
+#include<time.h>
 #include<math.h>
-#include<ncurses.h>
+
+//定义kbhit()所用头文件
 #include<termios.h>  
 #include<unistd.h>  
 #include<fcntl.h>
@@ -17,8 +19,8 @@ typedef struct map
 {
 	int layerA,layerB;//层数
 	TEA size;//大小
-	char a[4][100][100];//显示信息
-	char b[4][100][100];//特殊信息(例如碰撞)
+	char a[4][500][500];//显示信息
+	char b[4][500][500];//特殊信息(例如碰撞)
 	int roleLayerNum;//角色所处层编号
 	TEA roleBirthPlace;//角色出生点
 }MAP;//存储地图的数据类型
@@ -39,7 +41,7 @@ typedef struct screen
 	int left;
 	int top;
 	//游戏输出屏幕距实际输出屏幕左上角距离
-	char a[40][100];//屏幕实时数据
+	char a[500][500];//屏幕实时数据
 }SCR;
 
 typedef struct character
@@ -92,8 +94,9 @@ int main()
 	int i,j,l,camI,camJ,scrI,scrJ,mapI,chaI,chaJ;
 	int chaFPS=0;//人物当前状态帧编号
 	int indx;//地图层编号
+	int inputCon=0;//输入频率控制
+	int inputLock=0;
 	char key;//输入按键
-	int keyLock;
 	FILE *map,*cam,*cha;
 	map=fopen("map.in","r");
 	cam=fopen("cam.in","r");
@@ -103,7 +106,6 @@ int main()
 		printf("Failed openning .in file!\n");
 		exit(0);
 	}
-	
 	//文件读取开始
 	//map.in读取开始
 	k=0;
@@ -167,92 +169,111 @@ int main()
 	Scr[k].top=0;
 	//数据初始化结束
 
+	//窗口数据初始化开始
 	clrs(0);
 	initscr();//ncurses初始化
-	noecho();//关闭getch的回显
-	cbreak();
+	start_color();//开启颜色模式
+	init_pair(1, COLOR_WHITE, COLOR_CYAN);
+	init_pair(2, COLOR_WHITE, COLOR_BLUE);
+	init_pair(3, COLOR_GREEN, COLOR_BLACK);
+	attron(COLOR_PAIR(2));
+	noecho();//关闭输入回显
+	cbreak();//关闭行缓冲
 	curs_set(0);//隐藏光标
-	nodelay(stdscr,TRUE);//讲getch设置为无延迟
-	//调试代码开始
-	while(1)
+	nodelay(stdscr,TRUE);//将stdstr设置为无延迟模式
+	//窗口数据初始化结束
+
+	for(;;)//总循环开始
 	{//while开始
 		clrs(1);
-	//调试代码结束
 	
 	//数据处理开始
-	for(i=0;i<Cam[k].size.y;i++)
-		for(j=0;j<Cam[k].size.x;j++)
-			Scr[k].a[i][j]=' ';
-	for(camI=Cam[k].location.y;camI<Cam[k].location.y+Cam[k].size.y;camI++)
-	{
-		for(camJ=Cam[k].location.x;camJ<Cam[k].location.x+Cam[k].size.x;camJ++)
+		for(i=0;i<Cam[k].size.y;i++)
+			for(j=0;j<Cam[k].size.x;j++)
+				Scr[k].a[i][j]=' ';
+		for(camI=Cam[k].location.y;camI<Cam[k].location.y+Cam[k].size.y;camI++)
 		{
-			scrI=camI-Cam[k].location.y;
-			scrJ=camJ-Cam[k].location.x;
-			for(mapI=0;mapI<Map[k].layerA;mapI++)	
+			for(camJ=Cam[k].location.x;camJ<Cam[k].location.x+Cam[k].size.x;camJ++)
 			{
-				if(mapI==Map[k].roleLayerNum)
+				scrI=camI-Cam[k].location.y;
+				scrJ=camJ-Cam[k].location.x;
+				for(mapI=0;mapI<Map[k].layerA;mapI++)	
 				{
-					//TODO:更新人物状态将人物写入屏幕
-					chaI=camI-Cha[k].location.y;
-					chaJ=camJ-Cha[k].location.x;
-					if((chaI>=0)&&(chaI<Cha[k].size.y)&&(chaJ>=0)&&(chaJ<Cha[k].size.x))
-						if(Cha[k].a[chaFPS][chaI][chaJ]!=' ')Scr[k].a[scrI][scrJ]=Cha[k].a[chaFPS][chaI][chaJ];
+					if(mapI==Map[k].roleLayerNum)
+					{
+						//TODO:更新人物状态将人物写入屏幕
+						chaI=camI-Cha[k].location.y;
+						chaJ=camJ-Cha[k].location.x;
+						if((chaI>=0)&&(chaI<Cha[k].size.y)&&(chaJ>=0)&&(chaJ<Cha[k].size.x))
+							if(Cha[k].a[chaFPS][chaI][chaJ]!=' ')Scr[k].a[scrI][scrJ]=Cha[k].a[chaFPS][chaI][chaJ];
+					}
+					if(Map[k].a[mapI][camI][camJ]!=' ')Scr[k].a[scrI][scrJ]=Map[k].a[mapI][camI][camJ];
 				}
-				if(Map[k].a[mapI][camI][camJ]!=' ')Scr[k].a[scrI][scrJ]=Map[k].a[mapI][camI][camJ];
 			}
 		}
-	}
-	//数据处理结束
+		//数据处理结束
 
-	//数据呈现开始
-	for(i=0;i<Scr[k].top;i++)printw("\n");
-	for(scrI=0;scrI<Scr[k].size.y;scrI++)
-	{
-		for(i=0;i<Scr[k].left;i++)printw(" ");
-		for(scrJ=0;scrJ<Scr[k].size.x;scrJ++)
+		//数据呈现开始
+		for(i=0;i<Scr[k].top;i++)printw("\n");
+		for(scrI=0;scrI<Scr[k].size.y;scrI++)
 		{
-			printw("%c",Scr[k].a[scrI][scrJ]);
+			for(i=0;i<Scr[k].left;i++)printw(" ");
+			for(scrJ=0;scrJ<Scr[k].size.x;scrJ++)
+			{
+				printw("%c",Scr[k].a[scrI][scrJ]);
+			}
+			printw("\n");
 		}
-		printw("\n");
-	}
-	//数据呈现结束
-	keyLock=-1;
+		//数据呈现结束
 
-	//调试代码开始
+		if(inputLock)
+		{
+			inputCon++;
+			if(inputCon==3)
+			{
+				inputCon=0;
+				inputLock=0;
+			}
+		}
 		if(kbhit())
 		{
 			key=getch();	
-			if(keyLock==-1)
+			if(inputLock==0)
+			{
 				switch(key)
 				{
 					case 'd':
 						Cha[k].location.x++;
 						chaFPS++;
-						//if(Cha[k].location.x>)
-						keyLock=1;
+						if(Cam[k].moveRule==3)
+							if(Cha[k].location.x+Cha[k].size.x-1-Cam[k].location.x>Cam[k].roleXRange.y)Cam[k].location.x++;
+				inputLock=1;
 						break;
 					case 'a':
 						Cha[k].location.x--;
 						chaFPS++;
-						keyLock=1;
+						if(Cam[k].moveRule==3)
+							if(Cha[k].location.x-Cam[k].location.x<Cam[k].roleXRange.x)Cam[k].location.x--;
+				inputLock=1;
 						break;
 					case 'j':
 						if(Cam[k].location.x>0)Cam[k].location.x--;
+				inputLock=1;
 						break;
 					case 'l':
 						if(Cam[k].location.x<30)Cam[k].location.x++;
+				inputLock=1;
 						break;
 				}
+			}
 			if(key=='q')break;//按q键退出
 			key='\0';
 		}
 		refresh();//刷新显示屏幕
 		if(chaFPS==Cha[k].fpsN)chaFPS%=Cha[k].fpsN;
 		napms(30);//小睡30ms
-	}//while结束
+	}//总循环结束
 	endwin();//结束ncurses模式
-	//调试代码结束
 
 	return 0;
 }
