@@ -1,81 +1,13 @@
-#include<ncurses.h>
-#include<stdlib.h>
+#include "textic.h"
+#include "kbhit.h"
+#include "data.h"
 #include<string.h>
 #include<time.h>
 #include<math.h>
 
-//定义kbhit()所用头文件
-#include<termios.h>  
-#include<unistd.h>  
-#include<fcntl.h>
-
-typedef struct xy
-{
-	int x;
-	int y;
-}TEA;//可以用来存储坐标大小一类数据的数对 TEA=Two-Element Array
-
-typedef struct map
-{
-	int layerA,layerB;//层数
-	TEA size;//大小
-	char a[4][500][500];//显示信息
-	char b[4][500][500];//特殊信息(例如碰撞)
-	int roleLayerNum;//角色所处层编号
-	TEA roleBirthPlace;//角色出生点
-}MAP;//存储地图的数据类型
-
-typedef struct camera
-{
-	int movable;
-	TEA size;
-	TEA location;
-	int moveRule;//0不动 1自动 3随人物动
-	TEA roleXRange;//人物所处X轴范围
-	TEA roleYRange;//人物所处Y轴范围
-}CAM;
-
-typedef struct screen
-{
-	TEA size;
-	int left;
-	int top;
-	//游戏输出屏幕距实际输出屏幕左上角距离
-	char a[500][500];//屏幕实时数据
-}SCR;
-
-typedef struct character
-{
-	TEA size;
-	char a[20][20][20];//最大20×20字符 最多存储20帧
-	int fpsN;//常态人物动画帧数
-	int sSN;//殊态总数
-	int fpsS[5];//殊态人物动画帧数 最多5种殊态
-	TEA location;
-}CHA;
+#define _COLORPAIR(x) COLOR_PAIR((((x.frontColor)*8)+(x.backColor))+1)
 
 //void render(MAP ma,CAM ca,CHA ch,SCR *sc);
-int kbhit(void)  
-{  
-	struct termios oldt, newt;  
-   	int ch;  
-	int oldf;  
-   	tcgetattr(STDIN_FILENO, &oldt);  
-	newt = oldt;  
-   	newt.c_lflag &= ~(ICANON | ECHO);  
-	tcsetattr(STDIN_FILENO, TCSANOW, &newt);  
-   	oldf = fcntl(STDIN_FILENO, F_GETFL, 0);  
- 	fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);  
- 	ch = getchar();  
- 	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  
-  	fcntl(STDIN_FILENO, F_SETFL, oldf);  
-  	if(ch != EOF)  
-   	{  
-    	ungetc(ch, stdin);  
-    	return 1;  
-	}  
-    return 0;  
-}  
 
 void clrs(int a)
 {
@@ -84,19 +16,20 @@ void clrs(int a)
 	//printw("\033[0;0H\033[?25l");
 }
 
+MAP Map[2];
+CAM Cam[2];
+SCR Scr[2];
+CHA Cha[2];
 int main()
 {
-	MAP Map[2];
-	CAM Cam[2];
-	SCR Scr[2];
-	CHA Cha[2];
 	int k;//游戏数据组号
 	int i,j,l,camI,camJ,scrI,scrJ,mapI,chaI,chaJ;
 	int chaFPS=0;//人物当前状态帧编号
 	int indx;//地图层编号
 	int inputCon=0;//输入频率控制
-	int inputLock=0;
-	char key;//输入按键
+	int inputLock=0;//输入锁定
+	COLORP defaultColor={2,0};
+	wchar_t key;//输入按键
 	FILE *map,*cam,*cha;
 	map=fopen("map.in","r");
 	cam=fopen("cam.in","r");
@@ -162,25 +95,30 @@ int main()
 	//数据初始化开始
 	for(i=0;i<Cam[k].size.y;i++)
 		for(j=0;j<Cam[k].size.x;j++)
+		{
+			Scr[k].c[i][j]=defaultColor;
 			Scr[k].a[i][j]=' ';
+		}
 	Cha[k].location=Map[k].roleBirthPlace;
 	Scr[k].size=Cam[k].size;
-	Scr[k].left=0;
-	Scr[k].top=0;
+	Scr[k].left=1;
+	Scr[k].top=1;
 	//数据初始化结束
 
 	//窗口数据初始化开始
 	clrs(0);
 	initscr();//ncurses初始化
 	start_color();//开启颜色模式
-	init_pair(1, COLOR_WHITE, COLOR_CYAN);
-	init_pair(2, COLOR_WHITE, COLOR_BLUE);
-	init_pair(3, COLOR_GREEN, COLOR_BLACK);
-	attron(COLOR_PAIR(2));
+
+	for(i=0;i<8;i++)
+		for(j=0;j<8;j++)
+			init_pair((i*8+j+1),i,j);
+
 	noecho();//关闭输入回显
 	cbreak();//关闭行缓冲
 	curs_set(0);//隐藏光标
 	nodelay(stdscr,TRUE);//将stdstr设置为无延迟模式
+	keypad(stdscr,TRUE);
 	//窗口数据初始化结束
 
 	for(;;)//总循环开始
@@ -205,9 +143,17 @@ int main()
 						chaI=camI-Cha[k].location.y;
 						chaJ=camJ-Cha[k].location.x;
 						if((chaI>=0)&&(chaI<Cha[k].size.y)&&(chaJ>=0)&&(chaJ<Cha[k].size.x))
-							if(Cha[k].a[chaFPS][chaI][chaJ]!=' ')Scr[k].a[scrI][scrJ]=Cha[k].a[chaFPS][chaI][chaJ];
+							if(Cha[k].a[chaFPS][chaI][chaJ]!=' ')
+							{
+								Scr[k].a[scrI][scrJ]=Cha[k].a[chaFPS][chaI][chaJ];
+								Scr[k].c[scrI][scrJ].frontColor=7;
+							}
 					}
-					if(Map[k].a[mapI][camI][camJ]!=' ')Scr[k].a[scrI][scrJ]=Map[k].a[mapI][camI][camJ];
+					if(Map[k].a[mapI][camI][camJ]!=' ')
+					{
+						Scr[k].a[scrI][scrJ]=Map[k].a[mapI][camI][camJ];
+						Scr[k].c[scrI][scrJ]=defaultColor;
+					}
 				}
 			}
 		}
@@ -220,7 +166,9 @@ int main()
 			for(i=0;i<Scr[k].left;i++)printw(" ");
 			for(scrJ=0;scrJ<Scr[k].size.x;scrJ++)
 			{
+				attron(_COLORPAIR(Scr[k].c[scrI][scrJ]));
 				printw("%c",Scr[k].a[scrI][scrJ]);
+				attroff(_COLORPAIR(Scr[k].c[scrI][scrJ]));
 			}
 			printw("\n");
 		}
@@ -243,26 +191,42 @@ int main()
 				switch(key)
 				{
 					case 'd':
-						Cha[k].location.x++;
-						chaFPS++;
-						if(Cam[k].moveRule==3)
-							if(Cha[k].location.x+Cha[k].size.x-1-Cam[k].location.x>Cam[k].roleXRange.y)Cam[k].location.x++;
-				inputLock=1;
+						if(Cha[k].location.x+Cha[k].size.x<Map[k].size.x)
+						{
+							Cha[k].location.x++;
+							chaFPS++;
+							if(Cam[k].moveRule==3)
+								if(Cha[k].location.x+Cha[k].size.x-1-Cam[k].location.x>Cam[k].roleXRange.y)Cam[k].location.x++;
+							inputLock=1;
+						}
 						break;
 					case 'a':
-						Cha[k].location.x--;
-						chaFPS++;
-						if(Cam[k].moveRule==3)
-							if(Cha[k].location.x-Cam[k].location.x<Cam[k].roleXRange.x)Cam[k].location.x--;
-				inputLock=1;
+						if(Cha[k].location.x>1)
+						{
+							Cha[k].location.x--;
+							chaFPS++;
+							if(Cam[k].moveRule==3)
+								if(Cha[k].location.x-Cam[k].location.x<Cam[k].roleXRange.x)Cam[k].location.x--;
+							inputLock=1;
+						}
+						break;
+					case 'z':
+						if(Cam[k].location.x>0)Cam[k].location.x--;
+						break;
+					case 'c':
+						if(Cam[k].location.x<Map[k].size.x-Scr[k].size.x)Cam[k].location.x++;
 						break;
 					case 'j':
-						if(Cam[k].location.x>0)Cam[k].location.x--;
-				inputLock=1;
+						if(Scr[k].left>1)Scr[k].left--;
 						break;
 					case 'l':
-						if(Cam[k].location.x<30)Cam[k].location.x++;
-				inputLock=1;
+						if(Scr[k].left+Scr[k].size.x+1<COLS)Scr[k].left++;
+						break;
+					case 'i':
+						if(Scr[k].top>1)Scr[k].top--;
+						break;
+					case 'k':
+						if(Scr[k].top+Scr[k].size.y+1<LINES)Scr[k].top++;
 						break;
 				}
 			}
